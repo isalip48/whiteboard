@@ -18,6 +18,6 @@ async function createRedisClient () {
     return client;
 }
 
-module. exports = {
+module.exports = {
     createRedisClient
 };

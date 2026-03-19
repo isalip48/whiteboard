@@ -13,7 +13,6 @@ const cors = require("cors");
 // Import our own config files
 const { corsOptions } = require("./config/cors");
 const { createRedisClient } = require("./config/redis");
-const { timeStamp } = require("console");
 
 // Create an Express application
 const app = express();
