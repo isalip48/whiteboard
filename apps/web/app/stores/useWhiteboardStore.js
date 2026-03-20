@@ -18,7 +18,7 @@ const useWhiteboardStore = create((set) => ({
   tool: {
     color: "#000000",
     size: 4,
-    tyoe: "pen",
+    type: "pen",
   },
 
   // room state
@@ -33,6 +33,8 @@ const useWhiteboardStore = create((set) => ({
   // list of users currently in the same room
   // each user: { id: socket.id, name: string }
   users: [],
+
+  cursors: {},
 
   // actions
   // functions that update the state

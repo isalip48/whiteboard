@@ -1,32 +1,24 @@
-// ─── Canvas.js ────────────────────────────────────────────────────────────────
-// The main drawing canvas component.
-// It renders an HTML <canvas> element and wires up all the mouse events.
+"use client";
 
-'use client';
-
-import { useRef, useEffect } from 'react';
-import { useSocket } from '../hooks/useSocket';
-import { useCanvas } from '../hooks/useCanvas';
-import useWhiteboardStore from '../stores/useWhiteboardStore';
+import { useRef, useEffect, useCallback } from "react";
+import { useSocket } from "../hooks/useSocket";
+import { useCanvas } from "../hooks/useCanvas";
+import useWhiteboardStore from "../stores/useWhiteboardStore";
 
 export default function Canvas() {
-  // canvasRef gives us direct access to the DOM canvas element
   const canvasRef = useRef(null);
-
-  // Get the socket connection
   const socket = useSocket();
+  const isReady = useRef(false); // tracks whether canvas has been initialized
 
-    // Get tool state and actions from Zustand
   const tool = useWhiteboardStore((state) => state.tool);
   const setTool = useWhiteboardStore((state) => state.setTool);
   const activateEraser = useWhiteboardStore((state) => state.activateEraser);
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
-   const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
+  const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
 
-  // ─── Set canvas size ────────────────────────────────────────────────────────
-  // The canvas drawing surface must match the screen size.
-  // CSS sizing alone doesn't work — we must set width/height as attributes.
+  // ─── Step 1: Initialize canvas ───────────────────────────────────────────────
+  // This runs first. We mark isReady = true once canvas is sized and cleared.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -34,49 +26,75 @@ export default function Canvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // Fill with white background
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    isReady.current = true; // Canvas is now ready to draw on
   }, []);
 
-  // ─── Listen for drawing events from other users ─────────────────────────────
+  // ─── Step 2: Set up socket listeners AFTER canvas is ready ───────────────────
+  // We use a small helper to safely draw only when canvas is initialized.
+  // Without this guard, board-state strokes would draw onto a 0x0 canvas.
+  const safeDraw = useCallback(
+    (x0, y0, x1, y1, color, size) => {
+      if (!isReady.current) return;
+      drawLine(canvasRef.current, x0, y0, x1, y1, color, size);
+    },
+    [drawLine],
+  );
+
   useEffect(() => {
     if (!socket) return;
 
-    // When the server broadcasts a draw event from another user,
-    // we draw it on our canvas
-    socket.on('draw', ({ x0, y0, x1, y1, color, size }) => {
-      drawLine(canvasRef.current, x0, y0, x1, y1, color, size);
+    // Replay all existing strokes when joining a room
+    socket.on("board-state", ({ strokes }) => {
+      // Small delay ensures canvas useEffect has run first
+      // requestAnimationFrame waits for the next paint cycle
+      requestAnimationFrame(() => {
+        strokes.forEach(({ x0, y0, x1, y1, color, size }) => {
+          safeDraw(x0, y0, x1, y1, color, size);
+        });
+      });
     });
 
-    // Cleanup — remove the listener when component unmounts
+    // Draw strokes from other users in real time
+    socket.on("draw", ({ x0, y0, x1, y1, color, size }) => {
+      safeDraw(x0, y0, x1, y1, color, size);
+    });
+
+    socket.on("clear-board", () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    });
+
     return () => {
-      socket.off('draw');
+      socket.off("board-state");
+      socket.off("draw");
+      socket.off("clear-board");
     };
-  }, [socket, drawLine]);
+  }, [socket, safeDraw]);
 
   return (
     <div className="relative w-screen h-screen">
-
-      {/* ── Toolbar ── */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10
-                      flex items-center gap-4
-                      bg-white border border-gray-200 rounded-2xl
-                      shadow-lg px-6 py-3">
-
-        {/* Color picker */}
+      <div
+        className="absolute top-4 left-1/2 -translate-x-1/2 z-10
+                      flex items-center gap-4 bg-white border border-gray-200
+                      rounded-2xl shadow-lg px-6 py-3"
+      >
         <label className="flex items-center gap-2 text-sm text-gray-600">
           Color
           <input
             type="color"
-            value={tool.color}
-            onChange={(e) => setTool(t => ({ ...t, color: e.target.value }))}
+            value={tool.type === "eraser" ? "#000000" : tool.color}
+            onChange={(e) => activatePen(e.target.value)}
             className="w-8 h-8 rounded cursor-pointer border border-gray-300"
           />
         </label>
 
-        {/* Brush size */}
         <label className="flex items-center gap-2 text-sm text-gray-600">
           Size
           <input
@@ -84,28 +102,34 @@ export default function Canvas() {
             min="1"
             max="20"
             value={tool.size}
-            onChange={(e) => setTool(t => ({ ...t, size: Number(e.target.value) }))}
+            onChange={(e) => setTool({ size: Number(e.target.value) })}
             className="w-24"
           />
           <span className="w-6 text-center">{tool.size}</span>
         </label>
 
-        {/* Eraser */}
         <button
-          onClick={() => setTool(t => ({ ...t, color: '#ffffff' }))}
-          className="px-3 py-1 text-sm rounded-lg border border-gray-300
-                     hover:bg-gray-100 transition-colors"
+          onClick={activateEraser}
+          className={`px-3 py-1 text-sm rounded-lg border transition-colors
+            ${
+              tool.type === "eraser"
+                ? "bg-gray-800 text-white border-gray-800"
+                : "border-gray-300 hover:bg-gray-100"
+            }`}
         >
           Eraser
         </button>
 
-        {/* Clear canvas */}
         <button
           onClick={() => {
             const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Tell the server to clear Redis and notify all users
+            if (socket) {
+              socket.emit("clear-board", { roomId: "room-default" });
+            }
           }}
           className="px-3 py-1 text-sm rounded-lg border border-red-300
                      text-red-500 hover:bg-red-50 transition-colors"
@@ -114,14 +138,13 @@ export default function Canvas() {
         </button>
       </div>
 
-      {/* ── Canvas ── */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
         onMouseDown={(e) => startDrawing(canvasRef, e)}
         onMouseMove={(e) => draw(canvasRef, e)}
         onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}  // Stop drawing if mouse leaves canvas
+        onMouseLeave={stopDrawing}
       />
     </div>
   );
