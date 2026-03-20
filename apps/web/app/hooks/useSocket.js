@@ -3,7 +3,7 @@
 
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import {  useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
 const SERVER_URL =

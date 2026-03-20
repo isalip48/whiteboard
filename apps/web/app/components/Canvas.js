@@ -7,6 +7,7 @@
 import { useRef, useEffect } from 'react';
 import { useSocket } from '../hooks/useSocket';
 import { useCanvas } from '../hooks/useCanvas';
+import useWhiteboardStore from '../stores/useWhiteboardStore';
 
 export default function Canvas() {
   // canvasRef gives us direct access to the DOM canvas element
@@ -15,8 +16,13 @@ export default function Canvas() {
   // Get the socket connection
   const socket = useSocket();
 
-  // Get all drawing logic from our hook
-  const { tool, setTool, startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
+    // Get tool state and actions from Zustand
+  const tool = useWhiteboardStore((state) => state.tool);
+  const setTool = useWhiteboardStore((state) => state.setTool);
+  const activateEraser = useWhiteboardStore((state) => state.activateEraser);
+  const activatePen = useWhiteboardStore((state) => state.activatePen);
+
+   const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
 
   // ─── Set canvas size ────────────────────────────────────────────────────────
   // The canvas drawing surface must match the screen size.
