@@ -4,6 +4,8 @@ import { useRef, useEffect, useCallback } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useCanvas } from "../hooks/useCanvas";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
+import CursorOverlay from "./CursorOverlay";
+import { useCursors } from "../hooks/useCursors";
 
 export default function Canvas() {
   const canvasRef = useRef(null);
@@ -15,6 +17,7 @@ export default function Canvas() {
   const activateEraser = useWhiteboardStore((state) => state.activateEraser);
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
+  const { handleMouseMove } = useCursors(socket, canvasRef);
   const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
 
   // ─── Step 1: Initialize canvas ───────────────────────────────────────────────
@@ -137,15 +140,19 @@ export default function Canvas() {
           Clear
         </button>
       </div>
-
+      
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
         onMouseDown={(e) => startDrawing(canvasRef, e)}
-        onMouseMove={(e) => draw(canvasRef, e)}
+        onMouseMove={(e) => {
+          draw(canvasRef, e); // handles drawing
+          handleMouseMove(e); // handles cursor broadcast
+        }}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
       />
+      <CursorOverlay />
     </div>
   );
 }
