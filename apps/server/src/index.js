@@ -15,6 +15,7 @@ const { corsOptions } = require("./config/cors");
 const { createRedisClient } = require("./config/redis");
 const { registerDrawHandler } = require("./handlers/drawHandler");
 const { registerRoomHandler } = require("./handlers/roomHandler");
+const { registerCursorHandler } = require('./handlers/cursorHandler');
 
 // Create an Express application
 const app = express();
@@ -61,7 +62,7 @@ async function main() {
     // Each function sets up listeners for one feature area
     registerDrawHandler(socket, io, redisClient);
     registerRoomHandler(socket, io, redisClient);
-
+    registerCursorHandler(socket, io);
   });
 
   // Start Listening for incoming connections on the specified port
