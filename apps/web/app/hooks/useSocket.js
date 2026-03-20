@@ -3,51 +3,59 @@
 
 "use client";
 
-import {  useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 
-const SERVER_URL =
-  process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || "http://localhost:4000";
-// NEXT_PUBLIC prefix means that it is exposd to the browser
+const SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:4000';
+const DEFAULT_ROOM = 'room-default';
+const DEFAULT_USER = 'User-' + Math.floor(Math.random() * 1000);
+
+// Create socket OUTSIDE the hook so it persists across re-renders
+// This is the key fix — Strict Mode won't destroy it
+let socketInstance = null;
 
 export function useSocket() {
-  // useRef stores a value that persists across re-renders WITHOUT causing
-  // a re-render when it changes. Perfect for storing the socket instance.
-  const socketRef = useRef(null);
+  // useState causes a re-render when socket connects
+  // useRef does NOT — that was the bug
+  const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    // Create the socket connection when the component mounts
-    socketRef.current = io(SERVER_URL, {
-      // transports tells Socket.IO to use WebSocket directly.
-      // By default it starts with HTTP polling then upgrades — we skip that.
-      transports: ["websocket"],
+    // Reuse existing socket if already connected
+    if (socketInstance?.connected) {
+      setSocket(socketInstance);
+      return;
+    }
 
-      // Automatically try to reconnect if connection drops
+    socketInstance = io(SERVER_URL, {
+      transports: ['websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000, // wait 1 second between attempts
+      reconnectionDelay: 1000,
     });
 
-    const socket = socketRef.current;
-
-    socket.on("connect", () => {
-      console.log(`✅ Connected to server: ${socket.id}`);
+    socketInstance.on('connect', () => {
+      console.log(`✅ Connected: ${socketInstance.id}`);
+      socketInstance.emit('join-room', {
+        roomId: DEFAULT_ROOM,
+        userName: DEFAULT_USER,
+      });
+      setSocket(socketInstance); // triggers re-render with the live socket
     });
 
-    socket.on("disconnect", (reason) => {
+    socketInstance.on('disconnect', (reason) => {
       console.log(`❌ Disconnected: ${reason}`);
+      setSocket(null);
     });
 
-    socket.on("connect_error", (err) => {
+    socketInstance.on('connect_error', (err) => {
       console.error(`🔴 Connection error: ${err.message}`);
     });
 
-    // CLEANUP — when the component unmounts (user leaves the page),
-    // disconnect the socket so we don't leak connections.
     return () => {
-      socket.disconnect();
+      // Don't disconnect on cleanup — Strict Mode calls this on first mount
+      // Only disconnect if actually leaving the page
     };
-  }, []); // Empty array = run once when component mounts
+  }, []);
 
-  return socketRef.current;
+  return socket;
 }

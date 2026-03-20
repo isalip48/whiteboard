@@ -83,6 +83,7 @@ export function useCanvas(socket) {
           y1,
           color: tool.color,
           size: tool.size,
+          roomId: "room-default",
         });
       }
 

@@ -13,6 +13,8 @@ const cors = require("cors");
 // Import our own config files
 const { corsOptions } = require("./config/cors");
 const { createRedisClient } = require("./config/redis");
+const { registerDrawHandler } = require("./handlers/drawHandler");
+const { registerRoomHandler } = require("./handlers/roomHandler");
 
 // Create an Express application
 const app = express();
@@ -55,10 +57,11 @@ async function main() {
   io.on("connection", (socket) => {
     console.log(`A user connected: ${socket.id}`);
 
-    // when the user diconnects, closes tab, loses internet, etc
-    socket.on("disconnect", (reason) => {
-      console.log(`A user disconnected: ${socket.id} - reason: ${reason}`);
-    });
+    // Register all event handlers for this socket
+    // Each function sets up listeners for one feature area
+    registerDrawHandler(socket, io, redisClient);
+    registerRoomHandler(socket, io, redisClient);
+
   });
 
   // Start Listening for incoming connections on the specified port
