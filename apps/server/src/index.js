@@ -16,6 +16,7 @@ const { createRedisClient } = require("./config/redis");
 const { registerDrawHandler } = require("./handlers/drawHandler");
 const { registerRoomHandler } = require("./handlers/roomHandler");
 const { registerCursorHandler } = require('./handlers/cursorHandler');
+const { registerChatHandler } = require('./handlers/chatHandler');
 
 // Create an Express application
 const app = express();
@@ -63,6 +64,7 @@ async function main() {
     registerDrawHandler(socket, io, redisClient);
     registerRoomHandler(socket, io, redisClient);
     registerCursorHandler(socket, io);
+    registerChatHandler(socket, io);
   });
 
   // Start Listening for incoming connections on the specified port

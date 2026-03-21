@@ -6,6 +6,7 @@ import { useCanvas } from "../hooks/useCanvas";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 import CursorOverlay from "./CursorOverlay";
 import { useCursors } from "../hooks/useCursors";
+import ChatPanel from './ChatPanel';
 
 export default function Canvas() {
   const canvasRef = useRef(null);
@@ -153,6 +154,7 @@ export default function Canvas() {
         onMouseLeave={stopDrawing}
       />
       <CursorOverlay />
+      <ChatPanel socket={socket} />
     </div>
   );
 }

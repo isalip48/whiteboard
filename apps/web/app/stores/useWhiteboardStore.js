@@ -36,6 +36,8 @@ const useWhiteboardStore = create((set) => ({
 
   cursors: {},
 
+  messages: [],
+
   // actions
   // functions that update the state
 
@@ -71,6 +73,12 @@ const useWhiteboardStore = create((set) => ({
   activatePen: (color) =>
     set((state) => ({
       tool: { ...state.tool, color: color || state.tool.color, type: "pen" },
+    })),
+
+  addMessage: (message) =>
+    set((state) => ({
+      // Keep last 100 messages to avoid unbounded memory growth
+      messages: [...state.messages, message].slice(-100),
     })),
 }));
 
