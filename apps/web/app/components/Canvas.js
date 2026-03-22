@@ -6,7 +6,8 @@ import { useCanvas } from "../hooks/useCanvas";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 import CursorOverlay from "./CursorOverlay";
 import { useCursors } from "../hooks/useCursors";
-import ChatPanel from './ChatPanel';
+import ChatPanel from "./ChatPanel";
+import DownloadIcon from "@mui/icons-material/Download";
 
 export default function Canvas() {
   const canvasRef = useRef(null);
@@ -20,6 +21,29 @@ export default function Canvas() {
 
   const { handleMouseMove } = useCursors(socket, canvasRef);
   const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
+
+  // Export canvas as PNG
+  // toDataURL() serializes the entire canvas pixel data to a base64 PNG.
+  // create a temporary anchor tag and trigger a download — no server needed.
+  const exportToPNG = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Convert canvas to PNG data URL
+    const dataURL = canvas.toDataURL("image/png");
+
+    // create a hiddem anchor element
+    const link = document.createElement("a");
+    link.href = dataURL;
+
+    // Filename includes the timestamp so exports dont overwrite each other
+    link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
+
+    // trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, []);
 
   // ─── Step 1: Initialize canvas ───────────────────────────────────────────────
   // This runs first. We mark isReady = true once canvas is sized and cleared.
@@ -140,8 +164,16 @@ export default function Canvas() {
         >
           Clear
         </button>
+
+        <button
+          onClick={exportToPNG}
+          className="flex items-center gap-1 px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors"
+        >
+          <DownloadIcon fontSize="small" />
+          Export
+        </button>
       </div>
-      
+
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"

@@ -72,6 +72,7 @@ export default function ChatPanel({ socket }) {
             )}
 
             {messages.map((msg, i) => {
+              console.log('📨 Message object:', msg);
               const isMe = msg.userId === myId;
 
               return (
