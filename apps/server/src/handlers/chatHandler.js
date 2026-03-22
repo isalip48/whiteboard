@@ -28,7 +28,7 @@ function registerChatHandler(socket, io) {
       userId: socket.id,
       userName: socket.data.userName || "Anonymous",
       message: safeMessage,
-      timestamp: new Date().toISOString,
+      timestamp: new Date().toISOString(),
     });
   });
 }
