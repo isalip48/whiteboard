@@ -15,21 +15,30 @@ const { corsOptions } = require("./config/cors");
 const { createRedisClient } = require("./config/redis");
 const { registerDrawHandler } = require("./handlers/drawHandler");
 const { registerRoomHandler } = require("./handlers/roomHandler");
-const { registerCursorHandler } = require('./handlers/cursorHandler');
-const { registerChatHandler } = require('./handlers/chatHandler');
+const { registerCursorHandler } = require("./handlers/cursorHandler");
+const { registerChatHandler } = require("./handlers/chatHandler");
+const {
+  httpRateLimiter,
+  createSocketRateLimiter,
+} = require("./middleware/rateLimiter");
 
 // Create an Express application
 const app = express();
 
 // Apply Security Middleware
 // Helmet automatically sets various HTTP headers to help protect the app from well-known web vulnerabilities
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // needed for Socket.IO
+}));
 
 // cors middleware tells the server to only accept requests from the frontend URL
 app.use(cors(corsOptions));
 
 // Parse incoming JSON requests and make the data available in req.body
 app.use(express.json());
+
+// HTTP rate limiter
+app.use(httpRateLimiter);
 
 // Health check endpoint to verify that the server is running
 app.get("/health", (req, res) => {
@@ -45,7 +54,10 @@ const io = new Server(httpServer, {
   cors: corsOptions,
   pingTimeout: 60000, // How long to wait before declaring a client disconnected
   pingInterval: 25000, // How often to ping clients to check if they are still connected
+  maxHttpBufferSize: 1e6, // 1MB max payload per event — prevents memory attacks
 });
+
+const socketRateLimiter = createSocketRateLimiter();
 
 // Start Redis
 // Wrap startup in an async function because connecting to Redis is asynchronous - it takes a moment and we need to await it
@@ -61,10 +73,28 @@ async function main() {
 
     // Register all event handlers for this socket
     // Each function sets up listeners for one feature area
+    socketRateLimiter.addSocket(socket.id);
+
+    socket.use(([event, ...args], next) => {
+      if (socketRateLimiter.consume(socket.id)) {
+        next(); // allowed — process the event
+      } else {
+        // Rate limited — notify the client and skip
+        console.warn(`Rate limit exceeded for socket: ${socket.id}`);
+        socket.emit("error", { message: "Rate limit exceeded. Slow down!" });
+      }
+    });
+
     registerDrawHandler(socket, io, redisClient);
     registerRoomHandler(socket, io, redisClient);
     registerCursorHandler(socket, io);
     registerChatHandler(socket, io);
+
+    socket.on("disconnect", (reason) => {
+      console.log(`A user disconnected: ${socket.id} - reason: ${reason}`);
+      // Clean up rate limiter bucket
+      socketRateLimiter.removeSocket(socket.id);
+    });
   });
 
   // Start Listening for incoming connections on the specified port
