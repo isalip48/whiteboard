@@ -1,19 +1,25 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useCanvas } from "../hooks/useCanvas";
+import { useShapeCorrection } from "../hooks/useShapeCorrection";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 import CursorOverlay from "./CursorOverlay";
 import { useCursors } from "../hooks/useCursors";
 import ChatPanel from "./ChatPanel";
 import DownloadIcon from "@mui/icons-material/Download";
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
 
 export default function Canvas({ roomId }) {
   const canvasRef = useRef(null);
   const socket = useSocket(roomId);
   const isReady = useRef(false); // tracks whether canvas has been initialized
+
+  // ── Correction state ──────────────────────────────────────────────────────────
+  const [correctionMode, setCorrectionMode] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false); // shows loading indicator
 
   const tool = useWhiteboardStore((state) => state.tool);
   const setTool = useWhiteboardStore((state) => state.setTool);
@@ -21,7 +27,11 @@ export default function Canvas({ roomId }) {
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
   const { handleMouseMove } = useCursors(socket, canvasRef, roomId);
-  const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket, roomId);
+  const { startDrawing, draw, stopDrawing, drawLine, applyShapeCorrection } = useCanvas(
+    socket,
+    roomId,
+  );
+  const { correctShape } = useShapeCorrection();
 
   // Export canvas as PNG
   // toDataURL() serializes the entire canvas pixel data to a base64 PNG.
@@ -107,6 +117,33 @@ export default function Canvas({ roomId }) {
     };
   }, [socket, safeDraw]);
 
+  //  Mouse up handler
+  // When correction mode is ON, grab the stroke buffer, send to server, redraw.
+  const handleMouseUp = useCallback(async () => {
+    const strokes = stopDrawing(); // always call to reset isDrawing ref
+
+    if (!correctionMode || strokes.length < 2) return;
+
+    setIsCorrecting(true);
+    try {
+      const shape = await correctShape(strokes);
+      if (shape && shape.type !== "unknown") {
+        applyShapeCorrection(canvasRef.current, shape, strokes);
+      }
+    } finally {
+      setIsCorrecting(false);
+    }
+  }, [correctionMode, stopDrawing, correctShape, applyShapeCorrection]);
+
+  //  Handle clear
+  const handleClear = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (socket) socket.emit("clear-board", { roomId });
+  }, [socket, roomId]);
+
   return (
     <div className="relative w-screen h-screen">
       {/* Room ID + copy link */}
@@ -164,6 +201,33 @@ export default function Canvas({ roomId }) {
         >
           Eraser
         </button>
+        <button
+          onClick={() => {
+            setCorrectionMode((m) => !m);
+            // If turning on correction mode, switch back to pen so user draws normally
+            if (!correctionMode && tool.type === "eraser") activatePen();
+          }}
+          title={
+            correctionMode
+              ? "Shape correction ON — click to disable"
+              : "Shape correction OFF — click to enable"
+          }
+          className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg border transition-all
+            ${
+              correctionMode
+                ? "bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-200"
+                : "border-gray-300 hover:bg-gray-100 text-gray-700"
+            }
+            ${isCorrecting ? "opacity-60 cursor-wait" : ""}
+          `}
+        >
+          <AutoFixHighIcon fontSize="small" />
+          {isCorrecting
+            ? "Correcting…"
+            : correctionMode
+              ? "Correct: ON"
+              : "Correct: OFF"}
+        </button>
 
         <button
           onClick={() => {
@@ -190,7 +254,16 @@ export default function Canvas({ roomId }) {
           Export
         </button>
       </div>
-
+      {/* Correction mode hint banner  */}
+      {correctionMode && !isCorrecting && (
+        <div
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-10
+                     bg-violet-50 border border-violet-200 text-violet-700
+                     text-xs px-4 py-1.5 rounded-full shadow-sm pointer-events-none"
+        >
+          Draw a shape — it will be auto-corrected when you lift your mouse
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
@@ -203,7 +276,7 @@ export default function Canvas({ roomId }) {
         onMouseLeave={stopDrawing}
       />
       <CursorOverlay />
-      <ChatPanel socket={socket} roomId={roomId}/>
+      <ChatPanel socket={socket} roomId={roomId} />
     </div>
   );
 }
