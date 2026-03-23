@@ -10,7 +10,7 @@ import { useEffect, useCallback } from 'react';
 import { throttle } from '../utils/throttle';
 import useWhiteboardStore from '../stores/useWhiteboardStore';
 
-export function useCursors(socket, canvasRef) {
+export function useCursors(socket, canvasRef, roomId) {
   const updateCursor = useWhiteboardStore((state) => state.updateCursor);
   const removeCursor = useWhiteboardStore((state) => state.removeCursor);
 
@@ -20,12 +20,12 @@ export function useCursors(socket, canvasRef) {
     throttle((x, y) => {
       if (!socket) return;
       socket.emit('cursor-move', {
-        roomId: 'room-default',
+        roomId,
         x,
         y,
       });
     }, 1000 / 30), // 30 frames per second
-    [socket]
+    [socket, roomId]
   );
 
   // ─── Handle mouse move on the canvas ────────────────────────────────────────

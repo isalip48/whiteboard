@@ -5,7 +5,7 @@
 import { useEffect, useCallback, useState } from "react";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 
-export function useChat(socket) {
+export function useChat(socket, roomId ) {
   const addMessage = useWhiteboardStore((state) => state.addMessage);
   const [input, setInput] = useState("");
 
@@ -25,7 +25,7 @@ export function useChat(socket) {
     if (!socket || !input.trim()) return;
 
     socket.emit("chat-message", {
-      roomId: "room-default",
+      roomId,
       message: input.trim(),
     });
     setInput(""); // Clear input after sending

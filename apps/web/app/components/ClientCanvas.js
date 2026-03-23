@@ -10,6 +10,6 @@ import dynamic from 'next/dynamic';
 
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false });
 
-export default function ClientCanvas() {
-  return <Canvas />;
+export default function ClientCanvas({roomId}) {
+  return <Canvas roomId={roomId}/>;
 }
