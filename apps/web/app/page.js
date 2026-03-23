@@ -17,10 +17,9 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const sanitize = (val) =>
-    val
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9-]/g, "-");
+  val
+    .trim()
+    .replace(/[^a-zA-Z0-9-_]/g, '');
 
   const handleCreate = () => {
     if (!name.trim()) {
@@ -42,8 +41,28 @@ export default function Home() {
       setError("Please enter a room ID to join.");
       return;
     }
+
     setUserName(name.trim());
-    router.push(`/room/${sanitize(joinRoomId)}`);
+
+    // Handle both cases:
+    // 1. User pastes full URL: http://localhost:3000/room/abc123
+    // 2. User pastes just the room ID: abc123
+    let roomId = joinRoomId.trim();
+
+    if (roomId.includes("/room/")) {
+      // Extract just the room ID from the URL
+      roomId = roomId.split("/room/")[1];
+    }
+
+    // Remove any trailing slashes or query strings
+    roomId = roomId.split("/")[0].split("?")[0];
+
+    if (!roomId) {
+      setError("Invalid room ID or URL.");
+      return;
+    }
+
+    router.push(`/room/${sanitize(roomId)}`);
   };
 
   return (

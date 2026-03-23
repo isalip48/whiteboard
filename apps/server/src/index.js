@@ -21,6 +21,7 @@ const {
   httpRateLimiter,
   createSocketRateLimiter,
 } = require("./middleware/rateLimiter");
+const shapeCorrectionRouter = require("./routes/shapeCorrection");
 
 // Create an Express application
 const app = express();
@@ -45,6 +46,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timeStamp: new Date().toISOString() });
 });
 
+// Shape correction REST endpoint 
+// Must be mounted BEFORE the HTTP server is created (it's just Express middleware)
+app.use("/api", shapeCorrectionRouter);
+ 
 // Create an HTTP server
 // Dont use express app directly because socket.io needs to work with the raw HTTP server. So wrap the express app in an HTTP server.
 const httpServer = http.createServer(app);
