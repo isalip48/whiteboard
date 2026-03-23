@@ -8,7 +8,7 @@
 import { useCallback, useRef } from "react";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 
-export function useCanvas(socket) {
+export function useCanvas(socket, roomId) {
   // useRef for values that change but shouldn't trigger a re-render
   const isDrawing = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -83,14 +83,14 @@ export function useCanvas(socket) {
           y1,
           color: tool.color,
           size: tool.size,
-          roomId: "room-default",
+          roomId,
         });
       }
 
       // Update last position for the next segment
       lastPos.current = { x: x1, y: y1 };
     },
-    [drawLine, getCanvasPos, tool, socket],
+    [drawLine, getCanvasPos, tool, socket, roomId],
   );
 
   // ─── Mouse up / leave — user stops drawing ──────────────────────────────────

@@ -8,10 +8,11 @@ import CursorOverlay from "./CursorOverlay";
 import { useCursors } from "../hooks/useCursors";
 import ChatPanel from "./ChatPanel";
 import DownloadIcon from "@mui/icons-material/Download";
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
-export default function Canvas() {
+export default function Canvas({ roomId }) {
   const canvasRef = useRef(null);
-  const socket = useSocket();
+  const socket = useSocket(roomId);
   const isReady = useRef(false); // tracks whether canvas has been initialized
 
   const tool = useWhiteboardStore((state) => state.tool);
@@ -19,8 +20,8 @@ export default function Canvas() {
   const activateEraser = useWhiteboardStore((state) => state.activateEraser);
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
-  const { handleMouseMove } = useCursors(socket, canvasRef);
-  const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket);
+  const { handleMouseMove } = useCursors(socket, canvasRef, roomId);
+  const { startDrawing, draw, stopDrawing, drawLine } = useCanvas(socket, roomId);
 
   // Export canvas as PNG
   // toDataURL() serializes the entire canvas pixel data to a base64 PNG.
@@ -108,6 +109,22 @@ export default function Canvas() {
 
   return (
     <div className="relative w-screen h-screen">
+      {/* Room ID + copy link */}
+      <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
+        <span className="text-xs text-gray-400">Room:</span>
+        <span className="text-xs font-mono font-semibold text-gray-700">
+          {roomId}
+        </span>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(window.location.href);
+          }}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          title="Copy link"
+        >
+          <ContentCopyIcon fontSize="inherit" />
+        </button>
+      </div>
       <div
         className="absolute top-4 left-1/2 -translate-x-1/2 z-10
                       flex items-center gap-4 bg-white border border-gray-200
@@ -156,7 +173,7 @@ export default function Canvas() {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             // Tell the server to clear Redis and notify all users
             if (socket) {
-              socket.emit("clear-board", { roomId: "room-default" });
+              socket.emit("clear-board", { roomId });
             }
           }}
           className="px-3 py-1 text-sm rounded-lg border border-red-300
@@ -186,7 +203,7 @@ export default function Canvas() {
         onMouseLeave={stopDrawing}
       />
       <CursorOverlay />
-      <ChatPanel socket={socket} />
+      <ChatPanel socket={socket} roomId={roomId}/>
     </div>
   );
 }

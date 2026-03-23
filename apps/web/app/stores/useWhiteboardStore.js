@@ -24,11 +24,18 @@ const useWhiteboardStore = create((set) => ({
   // room state
   // Which collaborative room the user is in
 
+  userName: "",
+
   room: {
     id: null,
-    isJoined: false, // Has the user successfully joined the room?
+    isJoined: false,
   },
 
+  setUserName: (name) => set({ userName: name }),
+
+  setRoom: (updates) =>
+    set((state) => ({ room: { ...state.room, ...updates } })),
+  
   // user state
   // list of users currently in the same room
   // each user: { id: socket.id, name: string }

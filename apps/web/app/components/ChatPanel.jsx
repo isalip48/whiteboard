@@ -17,9 +17,9 @@ function formatTime(iso) {
   });
 }
 
-export default function ChatPanel({ socket }) {
+export default function ChatPanel({ socket, roomId }) {
   const messages = useWhiteboardStore((state) => state.messages);
-  const { input, setInput, sendMessage, handleKeyDown } = useChat(socket);
+  const { input, setInput, sendMessage, handleKeyDown } = useChat(socket, roomId);
   const [isOpen, setIsOpen] = useState(true);
   const bottomRef = useRef(null);
 
