@@ -89,6 +89,7 @@ export function useCanvas(socket, roomId) {
         color: tool.color,
         size: tool.size,
       });
+      console.log('stroke buffered, total:', strokeBuffer.current.length); // ADD THIS
 
       // 3. Tell the server about this stroke so other users see it
       // We send only the delta (start + end point) not the whole canvas — saves bandwidth

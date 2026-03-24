@@ -16,6 +16,7 @@ export default function Canvas({ roomId }) {
   const canvasRef = useRef(null);
   const socket = useSocket(roomId);
   const isReady = useRef(false); // tracks whether canvas has been initialized
+  const correctionModeRef = useRef(false);
 
   // ── Correction state ──────────────────────────────────────────────────────────
   const [correctionMode, setCorrectionMode] = useState(false);
@@ -27,10 +28,8 @@ export default function Canvas({ roomId }) {
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
   const { handleMouseMove } = useCursors(socket, canvasRef, roomId);
-  const { startDrawing, draw, stopDrawing, drawLine, applyShapeCorrection } = useCanvas(
-    socket,
-    roomId,
-  );
+  const { startDrawing, draw, stopDrawing, drawLine, applyShapeCorrection } =
+    useCanvas(socket, roomId);
   const { correctShape } = useShapeCorrection();
 
   // Export canvas as PNG
@@ -71,6 +70,11 @@ export default function Canvas({ roomId }) {
 
     isReady.current = true; // Canvas is now ready to draw on
   }, []);
+
+  // Keep it in sync whenever the state changes
+  useEffect(() => {
+    correctionModeRef.current = correctionMode;
+  }, [correctionMode]);
 
   // ─── Step 2: Set up socket listeners AFTER canvas is ready ───────────────────
   // We use a small helper to safely draw only when canvas is initialized.
@@ -120,9 +124,15 @@ export default function Canvas({ roomId }) {
   //  Mouse up handler
   // When correction mode is ON, grab the stroke buffer, send to server, redraw.
   const handleMouseUp = useCallback(async () => {
-    const strokes = stopDrawing(); // always call to reset isDrawing ref
+    const strokes = stopDrawing();
+    console.log(
+      "mouseup fired, correctionMode:",
+      correctionModeRef.current,
+      "strokes:",
+      strokes.length,
+    );
 
-    if (!correctionMode || strokes.length < 2) return;
+    if (!correctionModeRef.current || strokes.length < 2) return;
 
     setIsCorrecting(true);
     try {
@@ -133,7 +143,7 @@ export default function Canvas({ roomId }) {
     } finally {
       setIsCorrecting(false);
     }
-  }, [correctionMode, stopDrawing, correctShape, applyShapeCorrection]);
+  }, [stopDrawing, correctShape, applyShapeCorrection]);
 
   //  Handle clear
   const handleClear = useCallback(() => {
@@ -272,7 +282,7 @@ export default function Canvas({ roomId }) {
           draw(canvasRef, e); // handles drawing
           handleMouseMove(e); // handles cursor broadcast
         }}
-        onMouseUp={stopDrawing}
+        onMouseUp={handleMouseUp}
         onMouseLeave={stopDrawing}
       />
       <CursorOverlay />
