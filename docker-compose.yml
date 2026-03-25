@@ -1,0 +1,45 @@
+# ── docker-compose.yml ─────────────────────────────────────────────────────────
+# Runs all three services together with one command: docker-compose up
+
+services:
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine          # official Redis image, tiny
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data           # persist board state across restarts
+
+  # ── Backend (Node.js + Socket.IO) ────────────────────────────────────────────
+  server:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379     # "redis" = service name above, not localhost
+      CLIENT_URL: ${CLIENT_URL}         # read from .env file in root
+    depends_on:
+      - redis                           # wait for redis to start first
+
+  # ── Frontend (Next.js) ───────────────────────────────────────────────────────
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SOCKET_SERVER_URL: ${NEXT_PUBLIC_SOCKET_SERVER_URL}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+
+volumes:
+  redis_data:
