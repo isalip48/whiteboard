@@ -22,16 +22,14 @@ const {
   createSocketRateLimiter,
 } = require("./middleware/rateLimiter");
 const shapeCorrectionRouter = require("./routes/shapeCorrection");
+const transcribeRouter = require("./routes/transcribe");
 
 // Create an Express application
 const app = express();
 
 // Apply Security Middleware
 // Helmet automatically sets various HTTP headers to help protect the app from well-known web vulnerabilities
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // needed for Socket.IO
-}));
-
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } })); // needed for Socket.IO
 // cors middleware tells the server to only accept requests from the frontend URL
 app.use(cors(corsOptions));
 
@@ -49,7 +47,8 @@ app.get("/health", (req, res) => {
 // Shape correction REST endpoint 
 // Must be mounted BEFORE the HTTP server is created (it's just Express middleware)
 app.use("/api", shapeCorrectionRouter);
- 
+app.use("/api", transcribeRouter);
+
 // Create an HTTP server
 // Dont use express app directly because socket.io needs to work with the raw HTTP server. So wrap the express app in an HTTP server.
 const httpServer = http.createServer(app);
@@ -68,7 +67,7 @@ const socketRateLimiter = createSocketRateLimiter();
 // Wrap startup in an async function because connecting to Redis is asynchronous - it takes a moment and we need to await it
 async function main() {
   const redisClient = await createRedisClient();
-  console.log(`Connected to Redis`);
+  console.log("Connected to Redis");
 
   // Register Socket.IO event handlers
   // when a new user connects via WebSocket, Socket.IO fires this callback.
@@ -114,6 +113,6 @@ async function main() {
 // Run and catch any startup errors
 // If Redis is down or the port is taken, this will be a clear error
 main().catch((err) => {
-  console.error(`Error starting the server:`, err.message);
+  console.error("Error starting the server:", err.message);
   process.exit(1);
 });
