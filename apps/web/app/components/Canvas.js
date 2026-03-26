@@ -4,6 +4,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useCanvas } from "../hooks/useCanvas";
 import { useShapeCorrection } from "../hooks/useShapeCorrection";
+import { useVoiceDrawing } from "../hooks/useVoiceDrawing";
 import useWhiteboardStore from "../stores/useWhiteboardStore";
 import CursorOverlay from "./CursorOverlay";
 import { useCursors } from "../hooks/useCursors";
@@ -11,26 +12,44 @@ import ChatPanel from "./ChatPanel";
 import DownloadIcon from "@mui/icons-material/Download";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import AutoFixHighIcon from "@mui/icons-material/AutoFixHigh";
+import MicIcon from "@mui/icons-material/Mic";
+import StopIcon from "@mui/icons-material/Stop";
 
 export default function Canvas({ roomId }) {
   const canvasRef = useRef(null);
   const socket = useSocket(roomId);
-  const isReady = useRef(false); // tracks whether canvas has been initialized
-  const correctionModeRef = useRef(false);
+  const isReady = useRef(false);
 
-  // ── Correction state ──────────────────────────────────────────────────────────
+  // ── Correction state ──────────────────────────────────────────────────────
   const [correctionMode, setCorrectionMode] = useState(false);
   const [isCorrecting, setIsCorrecting] = useState(false); // shows loading indicator
+  const correctionModeRef = useRef(false);
 
+  useEffect(() => {
+    correctionModeRef.current = correctionMode;
+  }, [correctionMode]);
+
+  // ── Store ─────────────────────────────────────────────────────────────────
   const tool = useWhiteboardStore((state) => state.tool);
   const setTool = useWhiteboardStore((state) => state.setTool);
   const activateEraser = useWhiteboardStore((state) => state.activateEraser);
   const activatePen = useWhiteboardStore((state) => state.activatePen);
 
+  // ── Hooks ─────────────────────────────────────────────────────────────────
   const { handleMouseMove } = useCursors(socket, canvasRef, roomId);
   const { startDrawing, draw, stopDrawing, drawLine, applyShapeCorrection } =
     useCanvas(socket, roomId);
   const { correctShape } = useShapeCorrection();
+
+  // ── Voice drawing ─────────────────────────────────────────────────────────
+  const {
+    isRecording,
+    isProcessing,
+    statusMessage,
+    error: voiceError,
+    startRecording,
+    stopRecording,
+  } = useVoiceDrawing({ canvasRef, socket, roomId });
 
   // Export canvas as PNG
   // toDataURL() serializes the entire canvas pixel data to a base64 PNG.
@@ -48,8 +67,6 @@ export default function Canvas({ roomId }) {
 
     // Filename includes the timestamp so exports dont overwrite each other
     link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
-
-    // trigger download
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -60,10 +77,8 @@ export default function Canvas({ roomId }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -125,12 +140,6 @@ export default function Canvas({ roomId }) {
   // When correction mode is ON, grab the stroke buffer, send to server, redraw.
   const handleMouseUp = useCallback(async () => {
     const strokes = stopDrawing();
-    console.log(
-      "mouseup fired, correctionMode:",
-      correctionModeRef.current,
-      "strokes:",
-      strokes.length,
-    );
 
     if (!correctionModeRef.current || strokes.length < 2) return;
 
@@ -154,29 +163,40 @@ export default function Canvas({ roomId }) {
     if (socket) socket.emit("clear-board", { roomId });
   }, [socket, roomId]);
 
+  // ── Mic button handler ────────────────────────────────────────────────────
+  const handleMicClick = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="relative w-screen h-screen">
-      {/* Room ID + copy link */}
-      <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
-        <span className="text-xs text-gray-400">Room:</span>
-        <span className="text-xs font-mono font-semibold text-gray-700">
-          {roomId}
-        </span>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(window.location.href);
-          }}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          title="Copy link"
-        >
-          <ContentCopyIcon fontSize="inherit" />
-        </button>
-      </div>
+      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
       <div
         className="absolute top-4 left-1/2 -translate-x-1/2 z-10
-                      flex items-center gap-4 bg-white border border-gray-200
-                      rounded-2xl shadow-lg px-6 py-3"
+                   flex items-center gap-4 bg-white border border-gray-200
+                   rounded-2xl shadow-lg px-6 py-3"
       >
+        {/* Room ID + copy */}
+        <div className="flex items-center gap-2 pr-4 border-r border-gray-200">
+          <span className="text-xs text-gray-400">Room:</span>
+          <span className="text-xs font-mono font-semibold text-gray-700">
+            {roomId}
+          </span>
+          <button
+            onClick={() => navigator.clipboard.writeText(window.location.href)}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            title="Copy link"
+          >
+            <ContentCopyIcon fontSize="inherit" />
+          </button>
+        </div>
+
+        {/* Color */}
         <label className="flex items-center gap-2 text-sm text-gray-600">
           Color
           <input
@@ -211,6 +231,8 @@ export default function Canvas({ roomId }) {
         >
           Eraser
         </button>
+
+        {/* Shape correction */}
         <button
           onClick={() => {
             setCorrectionMode((m) => !m);
@@ -239,41 +261,94 @@ export default function Canvas({ roomId }) {
               : "Correct: OFF"}
         </button>
 
+        {/* ── Voice drawing button ─────────────────────────────────────────── */}
         <button
-          onClick={() => {
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext("2d");
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            // Tell the server to clear Redis and notify all users
-            if (socket) {
-              socket.emit("clear-board", { roomId });
-            }
-          }}
+          onClick={handleMicClick}
+          disabled={isProcessing}
+          title={isRecording ? "Stop recording" : "Start voice command"}
+          className={`flex items-center gap-1.5 px-3 py-1 text-sm rounded-lg border transition-all
+            ${
+              isRecording
+                ? "bg-red-500 text-white border-red-500 animate-pulse"
+                : isProcessing
+                  ? "bg-gray-100 text-gray-400 border-gray-200 cursor-wait"
+                  : "border-gray-300 hover:bg-gray-100 text-gray-700"
+            }`}
+        >
+          {isRecording ? (
+            <>
+              <StopIcon fontSize="small" /> Stop
+            </>
+          ) : (
+            <>
+              <MicIcon fontSize="small" />{" "}
+              {isProcessing ? "Processing…" : "Voice"}
+            </>
+          )}
+        </button>
+
+        {/* Clear */}
+        <button
+          onClick={handleClear}
           className="px-3 py-1 text-sm rounded-lg border border-red-300
                      text-red-500 hover:bg-red-50 transition-colors"
         >
           Clear
         </button>
 
+        {/* Export */}
         <button
           onClick={exportToPNG}
-          className="flex items-center gap-1 px-3 py-1 text-sm rounded-lg border border-gray-300 hover:bg-gray-100 transition-colors"
+          className="flex items-center gap-1 px-3 py-1 text-sm rounded-lg
+                     border border-gray-300 hover:bg-gray-100 transition-colors"
         >
           <DownloadIcon fontSize="small" />
           Export
         </button>
       </div>
-      {/* Correction mode hint banner  */}
-      {correctionMode && !isCorrecting && (
+
+      {/* ── Status banners ─────────────────────────────────────────────────── */}
+
+      {/* Shape correction hint */}
+      {correctionMode && !isCorrecting && !statusMessage && (
         <div
           className="absolute top-20 left-1/2 -translate-x-1/2 z-10
-                     bg-violet-50 border border-violet-200 text-violet-700
-                     text-xs px-4 py-1.5 rounded-full shadow-sm pointer-events-none"
+                        bg-violet-50 border border-violet-200 text-violet-700
+                        text-xs px-4 py-1.5 rounded-full shadow-sm pointer-events-none"
         >
           Draw a shape — it will be auto-corrected when you lift your mouse
         </div>
       )}
+
+      {/* Voice status message */}
+      {(statusMessage || voiceError) && (
+        <div
+          className={`absolute top-20 left-1/2 -translate-x-1/2 z-10
+                         text-xs px-4 py-1.5 rounded-full shadow-sm pointer-events-none
+                         ${
+                           voiceError
+                             ? "bg-red-50 border border-red-200 text-red-700"
+                             : "bg-blue-50 border border-blue-200 text-blue-700"
+                         }`}
+        >
+          {voiceError || statusMessage}
+        </div>
+      )}
+
+      {/* Recording pulse indicator */}
+      {isRecording && (
+        <div
+          className="absolute top-20 left-1/2 -translate-x-1/2 z-10
+                        flex items-center gap-2
+                        bg-red-50 border border-red-200 text-red-700
+                        text-xs px-4 py-1.5 rounded-full shadow-sm pointer-events-none"
+        >
+          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          Listening… speak your command then click Stop
+        </div>
+      )}
+
+      {/* ── Canvas ────────────────────────────────────────────────────────── */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 cursor-crosshair"
@@ -283,7 +358,7 @@ export default function Canvas({ roomId }) {
           handleMouseMove(e); // handles cursor broadcast
         }}
         onMouseUp={handleMouseUp}
-        onMouseLeave={stopDrawing}
+        onMouseLeave={() => stopDrawing()}
       />
       <CursorOverlay />
       <ChatPanel socket={socket} roomId={roomId} />
