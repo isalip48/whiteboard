@@ -18,7 +18,7 @@ export default function RoomPage() {
   // rediredt them to the landing page to set theri name first
   useEffect(() => {
     if (!userName) {
-      router.replace("/");
+      router.replace(`/?join=${roomId}`);
     }
   }, [userName, router]);
 
