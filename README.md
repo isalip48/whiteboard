@@ -326,7 +326,3 @@ docker-compose up --build -d
 | `NEXT_PUBLIC_ANTHROPIC_API_KEY` | web `.env.local` | Anthropic key for shape correction |
 
 ---
-
-## License
-
-MIT
