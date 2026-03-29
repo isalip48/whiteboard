@@ -31,7 +31,7 @@ jobs:
       # Install web dependencies
       - name: Install web dependencies
         working-directory: apps/web
-        run: npm install
+        run: npm install --force
         # using npm install instead of npm ci
         # because the lockfile is inside apps/web
 
