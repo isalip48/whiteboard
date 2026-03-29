@@ -3,53 +3,46 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main        # only trigger on pushes to main branch
+      - main
   pull_request:
     branches:
-      - main        # also run CI on pull requests (but not CD)
+      - main
 
 jobs:
 
-  #  CI Job 
-  # Runs on every push and pull request.
-  # Catches broken builds before they reach the server.
   ci:
     name: Build & Lint
-    runs-on: ubuntu-latest   # GitHub provides a free Ubuntu VM
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Download your code onto the GitHub VM
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Install Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Install web dependencies
-      - name: Install web dependencies
+      # Delete lockfile and node_modules so npm installs
+      # fresh Linux-compatible binaries for Tailwind/lightningcss
+      - name: Install web dependencies (fresh)
         working-directory: apps/web
-        run: npm install --force
-        # using npm install instead of npm ci
-        # because the lockfile is inside apps/web
+        run: |
+          rm -f package-lock.json
+          rm -rf node_modules
+          npm install
 
-      # Install server dependencies
       - name: Install server dependencies
         working-directory: apps/server
         run: npm install
 
-      # Build Next.js to catch errors
       - name: Build Next.js
         working-directory: apps/web
         run: npm run build
         env:
           NEXT_PUBLIC_SOCKET_SERVER_URL: http://localhost:4000
+          NEXT_PUBLIC_ANTHROPIC_API_KEY: dummy-key-for-build
 
-  # ─── CD Job ─────────────────────────────────────────────────────────────────
-  # Only runs after CI passes AND only on pushes to main (not PRs).
-  # SSHs into the AWS server and redeploys.
   cd:
     name: Deploy to AWS
     runs-on: ubuntu-latest
