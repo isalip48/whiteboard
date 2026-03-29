@@ -9,7 +9,6 @@ on:
       - main
 
 jobs:
-
   ci:
     name: Build & Lint
     runs-on: ubuntu-latest
@@ -21,16 +20,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       # Delete lockfile and node_modules so npm installs
       # fresh Linux-compatible binaries for Tailwind/lightningcss
       - name: Install web dependencies (fresh)
         working-directory: apps/web
         run: |
-          rm -f package-lock.json
           rm -rf node_modules
-          npm install
+          npm install --include=optional
+        env:
+          npm_config_optional: true
 
       - name: Install server dependencies
         working-directory: apps/server
@@ -41,7 +41,6 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_SOCKET_SERVER_URL: http://localhost:4000
-          NEXT_PUBLIC_ANTHROPIC_API_KEY: dummy-key-for-build
 
   cd:
     name: Deploy to AWS
