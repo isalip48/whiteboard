@@ -1,3 +1,5 @@
+![CI/CD](https://github.com/isalip48/whiteboard/actions/workflows/deploy.yml/badge.svg)
+
 # InkSync — Real-Time Collaborative Whiteboard
 
 A full-stack collaborative whiteboard application built with Next.js, Node.js, Socket.IO, and Redis. Multiple users can draw, chat, and collaborate in real time on a shared canvas.
