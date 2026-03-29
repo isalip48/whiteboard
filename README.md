@@ -1,4 +1,6 @@
 ![CI/CD](https://github.com/isalip48/whiteboard/actions/workflows/deploy.yml/badge.svg)
+![Node](https://img.shields.io/badge/node-20-green)
+![Docker](https://img.shields.io/badge/docker-enabled-blue)
 
 # InkSync — Real-Time Collaborative Whiteboard
 
